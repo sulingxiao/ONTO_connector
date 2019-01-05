@@ -2,7 +2,10 @@
 
 ## 概述
 
-本文用于指导DApp方如何接入ONTO，并使用扫码登陆，扫码调用智能合约等服务。
+本文用于指导DApp方如何接入ONTO扫码登陆，扫码调用智能合约等功能。
+
+ONTO扫码相关功能基于其支持[dAPI组件](https://github.com/ontio-cyano/CEPs/blob/master/CEP1.mediawiki)。
+
 流程中涉及到的参与方包括：
 
 * DApp方：对ONT生态内的用户提供dApp，是本体生态中重要的组成部分。
@@ -40,6 +43,8 @@
 
 ### 登陆接入步骤
 
+#### 1 dApp web端向server端获取登录二维码数据
+
 #### 登陆二维码标准
 扫码获取
 
@@ -68,7 +73,12 @@
 | expired   | string  | 可选  |
 | callback   | string  |  用户扫码签名后发送到DApp后端URL |
 
-### DApp服务端登陆接口
+#### 2 页面展示出二维码
+#### 3 ONTO扫码
+#### 4 ONTO解析登录数据，对数据签名
+#### 5 ONTO将签名数据发往dApp server验证
+
+#### DApp服务端登陆接口
 method: post
 
 ```
@@ -117,7 +127,7 @@ method: post
   "result": 1
 }
 ```
-
+#### 6 dApp web向server端查询登录状态。
 
 ### 调用合约二维码标准
 扫码获取
@@ -244,12 +254,136 @@ ONG:0200000000000000000000000000000000000000
 ## 代码参考
 
 ##### 签名验证方法
-* [java sdk验签](https://github.com/ontio/ontology-java-sdk/blob/master/docs/cn/interface.md#%E7%AD%BE%E5%90%8D%E9%AA%8C%E7%AD%BE)
-* [ts sdk验签](https://github.com/ontio/ontology-ts-sdk/blob/master/test/message.test.ts)
+* java sdk验签
+
+```
+  com.github.ontio.account.Account acct = new com.github.ontio.account.Account(ontSdk.defaultSignScheme);
+  byte[] data = "12345".getBytes();
+  DataSignature sign = new DataSignature(ontSdk.defaultSignScheme, acct, data);
+  byte[] signature = sign.signature();
+
+
+  com.github.ontio.account.Account acct2 = new com.github.ontio.account.Account(false,acct.serializePublicKey());
+  DataSignature sign2 = new DataSignature();
+  System.out.println(sign2.verifySignature(acct2, data, signature));
+```
+更多 java sdk接口可以查看 [java sdk](https://github.com/ontio/ontology-java-sdk/blob/master/docs/cn/interface.md)
+
+* ts sdk验签
+
+```
+test('test verify', async () => {
+        const msg = TestMessage.deserialize(signed);
+
+        const result = await msg.verify(restUrl);
+
+        expect(result).toBeTruthy();
+    });
+```
+更多ts sdk接口可以查看 [ts sdk](https://github.com/ontio/ontology-ts-sdk/blob/master/test/message.test.ts)
+
 
 ##### 合约查询方法
-* [java sdk 合约查询](https://github.com/ontio/ontology-java-sdk/blob/master/docs/cn/basic.md#%E4%B8%8E%E9%93%BE%E4%BA%A4%E4%BA%92%E6%8E%A5%E5%8F%A3)
-* [ts sdk 合约查询](https://github.com/ontio/ontology-ts-sdk/blob/master/test/websocket.test.ts)
+
+##### java sdk 查询智能合约事件
+
+根据交易hash获得智能合约事件
+
+```java
+Object  event = ontSdk.getConnect().getSmartCodeEvent(hash)
+```
+
+更多 java sdk查询方法请查看 [java sdk](https://github.com/ontio/ontology-java-sdk/blob/master/docs/cn/basic.md#%E4%B8%8E%E9%93%BE%E4%BA%A4%E4%BA%92%E6%8E%A5%E5%8F%A3)
+
+##### ts sdk 查询智能合约事件
+
+根据交易hash获得智能合约事件
+
+```javaScript
+    test.skip('test getSmartCodeEvent by txHash', async () => {
+        const result = await client.getSmartCodeEvent(txHash);
+
+        expect(result.Action).toBe('getsmartcodeeventbyhash');
+        expect(result.Desc).toBe('SUCCESS');
+        expect(typeof result.Result).toBe('string');
+    });
+```
+更多 ts sdk查询方法请查看 [ts sdk](https://github.com/ontio/ontology-ts-sdk/blob/master/test/websocket.test.ts)
 
 ##### ONTO
-* [ONTO](https://onto.app)
+* ONTO下载请查看 [ONTO](https://onto.app)
+
+#### 附录
+##### 数据结构说明
+
+* Block区块
+
+| Field     |     Type |   Description   |
+| :--------------: | :--------:| :------: |
+|    version|   int|  版本号  |
+|    prevBlockHash|   UInt256|  前一个区块的散列值|
+|    transactionsRoot|   UInt256|  该区块中所有交易的Merkle树的根|
+|    blockRoot|   UInt256| 区块根|
+|    timestamp|   int| 区块时间戳，unix时间戳  |
+|    height|   int|  区块高度  |
+|    consensusData|   long |  共识数据 |
+|    consensusPayload|   byte[] |  共识payload |
+|    nextBookKeeper|   UInt160 |  下一个区块的记账合约的散列值 |
+|    sigData|   array|  签名 |
+|    bookKeepers|   array|  验签者 |
+|    hash|   UInt256 |  该区块的hash值 |
+|    transactions|   Transaction[] |  该区块的交易列表 |
+
+
+* Transaction交易
+
+| Field     |     Type |   Description   |
+| :--------------: | :--------:| :------: |
+|    version|   int|  版本号  |
+|    txType|   TransactionType|  交易类型|
+|    nonce|   int |  随机数|
+| gasPrice|  long |  gas价格|
+| gasLimit|  long |  gas上限|
+|    payer|   Address |  支付交易费用账户|
+|    attributes|   Attribute[]|  交易属性列表 |
+|    sigs|   Sign[]|   签名数组  |
+|    payload| Payload |  payload  |
+
+
+* TransactionType交易类型
+
+| Value     |     Type |   Description   |
+| :--------------: | :--------:| :------: |
+|    208|   int |  部署智能合约交易|
+|    209|   int | 调用智能合约交易 |
+|      0|   int |     Bookkeeping   |
+|      4|   int |     注册       |
+|      5|   int |     投票 |
+
+
+* 签名字段
+
+| Field     |     Type |   Description   |
+| :--------------: | :--------:| :------: |
+|    pubKeys|   array |  公钥数组|
+|    M|   int | M |
+|    sigData|   array | 签名值数组 |
+
+
+
+* Attribute交易属性
+
+| Field    |     Type |   Description   |
+| :--------------: | :--------:| :------: |
+|    usage |   AttributeUsage |  用途|
+|    data|   byte[] | 属性值 |
+
+
+* TransactionAttributeUsage属性用途
+
+| Value     |     Type |   Description   |
+| :--------------: | :--------:| :------: |
+|    0|   int|  Nonce|
+|    32|   int | Script |
+|    129|   int | DescriptionUrl |
+|    144|   int | Description |
